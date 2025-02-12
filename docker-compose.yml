@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # Reverse proxy container that handles incoming HTTP/HTTPS traffic
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy
+    ports:
+      - "80:80" # HTTP port
+      - "443:443" # HTTPS port
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro # Allows nginx-proxy to detect other containers
+      - certs:/etc/nginx/certs # SSL certificates storage
+      - vhost:/etc/nginx/vhost.d # Virtual host configurations
+      - html:/usr/share/html # Static HTML files (for default pages)
+    restart: always # Container will always restart if it stops
+    networks:
+      - chat-network # Connects to the chat-network
+
+  # Automatic SSL certificate management container
+  letsencrypt:
+    image: nginxproxy/acme-companion
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Needed to detect containers
+      - certs:/etc/nginx/certs # Shared certificates with nginx-proxy
+      - vhost:/etc/nginx/vhost.d # Shared vhost config
+      - html:/usr/share/html # Shared HTML files
+      - acme:/etc/acme.sh # Let's Encrypt configuration storage
+    environment:
+      - DEFAULT_EMAIL=ajroberts0417@gmail.com # Email for SSL certificate notifications
+    depends_on:
+      - nginx-proxy # Must start after nginx-proxy
+    networks:
+      - chat-network
+
+  # Backend API server container
+  server:
+    build: ./server # Builds from server directory
+    expose:
+      - "3000" # Exposes port 3000 internally
+    environment:
+      - VIRTUAL_HOST=api.directoryny.com # Domain for the API
+      - LETSENCRYPT_HOST=api.directoryny.com # Domain to get SSL cert for
+    restart: always
+    networks:
+      - chat-network
+
+  # Frontend client container
+  client:
+    build: ./client # Builds from client directory
+    expose:
+      - "80" # Exposes port 80 internally
+    environment:
+      - VIRTUAL_HOST=chat.directoryny.com # Domain for the client
+      - LETSENCRYPT_HOST=chat.directoryny.com # Domain to get SSL cert for
+    restart: always
+    networks:
+      - chat-network
+
+# Named volumes for persistent data storage
+volumes:
+  certs: # SSL certificates
+  vhost: # Virtual host configurations
+  html: # Static HTML files
+  acme:
+    # Let's Encrypt configuration
+
+    # Network configuration
+networks:
+  chat-network:
+    external: true # Uses pre-existing network named 'chat-network'

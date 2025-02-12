@@ -1,0 +1,17 @@
+FROM oven/bun:latest
+
+WORKDIR /app
+
+# you are allowed to list multiple files: COPY [source1] [source2] [sourceN] [destination] 
+COPY package.json bun.lockb ./
+
+# install dependencies first, because this will get cached.
+RUN bun install
+
+COPY ./server ./server
+# If you have shared code
+COPY ./shared ./shared
+
+EXPOSE 3000
+
+CMD ["bun", "run", "serve"]
